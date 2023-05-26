@@ -28,6 +28,6 @@ Relevant cross sections include:
 - Chi-Squared analysis between ENDF and EXFOR data determining "goodness" of fit for the evaluation
 
 ## Files
-__RawData__: All raw data from ENDF and EXFOR for all the isotopes looked at in this project<\br>
-__ProcessedData__: All plots and info generated from the raw data. Subfolders for each isotope<\br>
+__RawData__: All raw data from ENDF and EXFOR for all the isotopes looked at in this project</br>
+__ProcessedData__: All plots and info generated from the raw data. Subfolders for each isotope</br>
 __Code__: Code base for this project to create plots and analyze raw data
