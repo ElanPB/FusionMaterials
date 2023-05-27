@@ -22,6 +22,7 @@ Relevant cross sections include:
   - Elastic
   - Inelastic
   - (n,gamma)
+  - (n, xn)
 
 ## Product
 - Plots of data for all the isotopes listed above on all cross sections listed above
