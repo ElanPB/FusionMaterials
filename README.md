@@ -1,7 +1,7 @@
 # FusionMaterials
 
 ## Project Description
-This project will focus on the procurement of relevant cross sections from ENDF and EXFOR for the effects of high energy neutrons (14 MeV all the way down) on essential materials for Magnetic Confinement Fusion with a focus on materials found in HTS magnets.
+This project will focus on the procurement of relevant cross sections from ENDF, JEFF and EXFOR for the effects of high energy neutrons (14 MeV all the way down) on essential materials for Magnetic Confinement Fusion with a focus on materials found in HTS magnets.
 
 
 The current list of important elements include (all elements found in REBCO tape):
