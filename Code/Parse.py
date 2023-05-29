@@ -94,20 +94,31 @@ def strToArray(text):
     return out
 
 def plot(name, data):
+    # Declaring variables for plot
     fig = plt.figure()
     fig.suptitle(name)
+
+    # Variables used for deciding log vs linear
+    cutoffRatio = 1000
+    cutoffMax = 10
     x_min = np.inf
     y_min = np.inf
     x_max = 0
     y_max = 0
+
+    # Looping through all data sets (ENDF, EXFOR, ...)
     for n, df in data.items():
         # Plotting data
+        # Plotting evaluated data
         if len(n.split('_')) == 2:
             plt.plot(df['X(MeV)'], df['Y(barns)'], label = n.split('_')[1])
+        
+        # Plotting experimental data
         else:
+            # Plotting by EXFOR ID
             for key, grp in df.groupby(['EXFOR-ID']):
                 plt.errorbar(grp['X(MeV)'], grp['Y(barns)'], xerr = grp['+-dX(MeV)'], yerr = grp['+-dY(barns)'],\
-                             ls = 'none', marker = 'o', mfc= 'white', label=key)
+                             ls = 'none', marker = 'o', mfc= 'white', markersize = 4 , label=key)
         
         #Finding extremes for purpose of determining log vs linear plotting
         x_min = min(x_min, df['X(MeV)'].min())
@@ -117,21 +128,78 @@ def plot(name, data):
     
     # Plot formatting
     plt.legend(loc = 'best')
-    if x_max/x_min > 1000:
+
+    # Scaling log vs linear
+    try:
+        if x_max/x_min > cutoffRatio:
+            plt.xscale('log')
+    except ZeroDivisionError:
         plt.xscale('log')
-    if y_max/y_min > 1000:
-        plt.yscale('log')
+
+    if y_max < cutoffMax:
+        try:
+            if y_max/y_min > cutoffRatio:
+                plt.xscale('log')
+        except ZeroDivisionError:
+            plt.xscale('log')
 
     return fig
 
+# Determine Chi-Squared value for evaluation compared to experimental
+def chiSquared(data):
+    chi_squared = {}
+
+    for n, ev in data.items(): # Loop through data sets for a given reaction type
+        if len(n.split('_')) == 2: # If data set is an evaluated data set (not experimental)
+            exfor_chi = {} # Create directory for Chi-Squared values of experimental data sets
+            for t, ex in data.items():
+                if len(t.split('_')) == 1: # Find experimental data sets
+                    for key, grp in ex.groupby(['EXFOR-ID']): # Calculate Chi-Squared for EXFOR data by experiment/ID
+                        chi = 0
+                        for i in range(grp.shape[0]): # Calculate value inside sum for each point
+                            y = lerp(ev, grp['X(MeV)'][i])
+                            chi += ((grp['Y(barns)'][i] - y)**2)/(grp['+-dY(barns)']**2)
+                        exfor_chi[str(key)] = [chi, grp.shape[0]] # Save Chi-Squared value and number of data points by EXFOR ID
+            chi_squared[n] = exfor_chi # Save Chi-Squared values
+    
+    return chi_squared
+
+# Take in Chi-Squared values for multiple data sets and combine into 
+def combineChi(vals):
+    tot = 0
+    points = 0
+    for i in vals.values():
+        tot += i[0]
+        points += i[1]
+    combined = tot/(points-1)
+    return combined
+
+def lerp(points, x):
+    closest = points.iloc[(points['X(MeV)']-x).abs().argsort()[0]].index
+    if points['X(MeV)'][closest] < x:
+        low = closest
+        high = closest + 1
+    else:
+        low = closest - 1
+        high = closest
+    slope = (points['Y(barns)'][high] - points['Y(barns)'][low])/(points['X(MeV)'][high] - points['X(MeV)'][low])
+    lerp = slope * (x - points['X(MeV)'][low]) + points['Y(barns)'][low]
+    return lerp
+
+# Sort reactions into map of types of reactions (i.e. n,p) and matching data sets by name
 def sortReactions(reactions):
-    types = {}
+    types = {} # map of types of reactions
+
+    # Sort through reaction data sets and categorize by name
     for i in reactions.keys():
-        type = i.split('(')[1].split(')')[0]
+        type = i.split('(')[1].split(')')[0] # determine type of reaction
+        # If the reactions has been recorded with another dataset, append to current list
         if type in types.keys():
             types[type].append(i)
+        # If first reaction of its kind make new entry in map for given type or reaction
         else:
             types[type] = [i]
+
     return types
 
 if __name__ == '__main__':
