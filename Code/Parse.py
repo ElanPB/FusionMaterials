@@ -96,12 +96,32 @@ def strToArray(text):
 def plot(name, data):
     fig = plt.figure()
     fig.suptitle(name)
+    x_min = np.inf
+    y_min = np.inf
+    x_max = 0
+    y_max = 0
     for n, df in data.items():
+        # Plotting data
         if len(n.split('_')) == 2:
             plt.plot(df['X(MeV)'], df['Y(barns)'], label = n.split('_')[1])
         else:
-            plt.errorbar(df['X(MeV)'], df['Y(barns)'], xerr = df['+-dX(MeV)'], yerr = df['+-dY(barns)'], ls='none', label = df['EXFOR-ID'][0], marker = 'o', mfc='white')
+            for key, grp in df.groupby(['EXFOR-ID']):
+                plt.errorbar(grp['X(MeV)'], grp['Y(barns)'], xerr = grp['+-dX(MeV)'], yerr = grp['+-dY(barns)'],\
+                             ls = 'none', marker = 'o', mfc= 'white', label=key)
+        
+        #Finding extremes for purpose of determining log vs linear plotting
+        x_min = min(x_min, df['X(MeV)'].min())
+        y_min = min(y_min, df['Y(barns)'].min())
+        x_max = max(x_max, df['X(MeV)'].max())
+        y_max = max(y_max, df['Y(barns)'].max())
+    
+    # Plot formatting
     plt.legend(loc = 'best')
+    if x_max/x_min > 1000:
+        plt.xscale('log')
+    if y_max/y_min > 1000:
+        plt.yscale('log')
+
     return fig
 
 def sortReactions(reactions):
