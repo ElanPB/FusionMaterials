@@ -93,7 +93,7 @@ def strToArray(text):
             i += 1
     return out
 
-def plot(name, data):
+def plot(name, data, chi_squared):
     # Declaring variables for plot
     fig = plt.figure()
     fig.suptitle(name)
@@ -117,8 +117,9 @@ def plot(name, data):
         else:
             # Plotting by EXFOR ID
             for key, grp in df.groupby(['EXFOR-ID']):
-                plt.errorbar(grp['X(MeV)'], grp['Y(barns)'], xerr = grp['+-dX(MeV)'], yerr = grp['+-dY(barns)'],\
-                             ls = 'none', marker = 'o', mfc= 'white', markersize = 4 , label=key)
+                plt.errorbar(grp['X(MeV)'], grp['Y(barns)'], xerr = grp['+-dX(MeV)'],\
+                             yerr = grp['+-dY(barns)'], ls = 'none', marker = 'o',\
+                             mfc = 'white', markersize = 4 , label=key)
         
         #Finding extremes for purpose of determining log vs linear plotting
         x_min = min(x_min, df['X(MeV)'].min())
@@ -128,6 +129,10 @@ def plot(name, data):
     
     # Plot formatting
     plt.legend(loc = 'best')
+    for i in chi_squared.values():
+        print(i)
+        if i != -1:
+            fig.text(.5, .01, 'Chi-Squared: ' + str(i), ha='center')
 
     # Scaling log vs linear
     try:
@@ -136,12 +141,12 @@ def plot(name, data):
     except ZeroDivisionError:
         plt.xscale('log')
 
-    if y_max < cutoffMax:
+    if y_max > cutoffMax:
         try:
             if y_max/y_min > cutoffRatio:
-                plt.xscale('log')
+                plt.yscale('log')
         except ZeroDivisionError:
-            plt.xscale('log')
+            plt.yscale('log')
 
     return fig
 
@@ -154,28 +159,36 @@ def chiSquared(data):
             exfor_chi = {} # Create directory for Chi-Squared values of experimental data sets
             for t, ex in data.items():
                 if len(t.split('_')) == 1: # Find experimental data sets
-                    for key, grp in ex.groupby(['EXFOR-ID']): # Calculate Chi-Squared for EXFOR data by experiment/ID
+                    for key, grp in ex.groupby(['EXFOR-ID']): # Calculate Chi-Squared for EXFOR data by ID
                         chi = 0
-                        for i in range(grp.shape[0]): # Calculate value inside sum for each point
+                        for i in grp.index: # Calculate value inside sum for each point
                             y = lerp(ev, grp['X(MeV)'][i])
-                            chi += ((grp['Y(barns)'][i] - y)**2)/(grp['+-dY(barns)']**2)
-                        exfor_chi[str(key)] = [chi, grp.shape[0]] # Save Chi-Squared value and number of data points by EXFOR ID
+                            chi += ((grp['Y(barns)'][i] - y)**2)/(grp['+-dY(barns)'][i]**2)
+                        exfor_chi[str(key)] = [chi, grp.shape[0]] # Save Chi-Squared value and number of points by ID
             chi_squared[n] = exfor_chi # Save Chi-Squared values
     
     return chi_squared
 
 # Take in Chi-Squared values for multiple data sets and combine into 
 def combineChi(vals):
-    tot = 0
-    points = 0
-    for i in vals.values():
-        tot += i[0]
-        points += i[1]
-    combined = tot/(points-1)
+    print(vals)
+    if not vals:
+        return -1
+    
+    combined = {}
+    for k, i in vals.items():
+        tot = 0
+        points = 0
+        for j in i.values():
+            print(j)
+            tot += j[0]
+            points += j[1]
+        chi = tot/(points-1)
+        combined[k] = chi
     return combined
 
 def lerp(points, x):
-    closest = points.iloc[(points['X(MeV)']-x).abs().argsort()[0]].index
+    closest = points.iloc[(points['X(MeV)']-x).abs().argsort()[:1]].index.tolist()[0]
     if points['X(MeV)'][closest] < x:
         low = closest
         high = closest + 1
@@ -210,5 +223,6 @@ if __name__ == '__main__':
     reacts = parse(isotope)
     types = sortReactions(reacts)
     for k, v in types.items():
-        fig = plot(k, {key: reacts[key] for key in v})
+        chi = combineChi(chiSquared({key: reacts[key] for key in v}))
+        fig = plot(k, {key: reacts[key] for key in v}, chi)
         fig.savefig('../ProcessedData/'+isotope+'/'+k+'.png')
