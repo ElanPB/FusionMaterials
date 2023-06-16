@@ -1,17 +1,21 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import mendeleev
 import sys
 import os
 
 # Function to parse data from txt files and return as titled data frames
 def parse(isotope):
     # Read in file
-    file = open('../RawData/' + isotope + '.txt', 'r')
+    file = open('../RawData/' + isotope + '_ENDF.txt', 'r')
     lines = file.read().split('\n')
 
     # Define variables used in loop
     evalSet = ['ENDF', 'JEFF']
+    endfNames = ('X(MeV)', 'Y(barns)')
+    exforNames = ('X(MeV)', '+-dX(MeV)', 'Y(barns)', '+-dY(barns)', 'Year', 'Author(s)', 'EXFOR-ID')
+    delim = ((0, 14), (14, 27), (27, 40), (40, 53), (56, 61), (62, 82), (85, 93))
     reactions = {}
     name = ''
     evaluated = None
@@ -22,12 +26,18 @@ def parse(isotope):
     for i, e in enumerate(lines):
         # Look for // to signify the end of each data set
         if e.startswith('//'):
+            if len(data[0]) > 2:
+                col = exforNames
+            else:
+                col = endfNames
             # When end is found, save data from previous set as pandas Data Frame and reset variables
-            reactions[name] = pd.DataFrame(data, columns=col)
+            if name in reactions.keys():
+                reactions[name].append(pd.DataFrame(data, columns=col))
+            else:
+                reactions[name] = pd.DataFrame(data, columns=col)
             name = ''
             evaluated = None
             data.clear()
-            col.clear()
         
         # Filter out commented lines
         elif e.startswith('#'):
@@ -44,40 +54,24 @@ def parse(isotope):
                 name = isotope + '(' + e.split('(')[1].split(')')[0] + ')'
                 if evaluated != None:
                     name += '_' + evaluated
-
-            # Search for data set coloumn names
-            elif (i < len(lines) - 1 and len(lines[i + 1]) != 0 and lines[i + 1][0] != '#'):
-                col = strToArray(e)
-                for j, x in enumerate(strToArray(lines[i - 1])):
-                    col[j] = x + '(' + col[j] + ')'
         
         # If not commented and not the end of a data set, it is data
         else:
             # Convert data from sting to array
-            line = strToArray(e)
             info = []
-            for x in range(len(line)):
-                # Convert elements of array to numbers when possible
+            for x in delim:
+                sec = e[x[0]:x[1]]
                 try:
-                    info.append(float(line[x]))
-                except ValueError:
-                    info.append(line[x])
+                    sec = float(sec)
+                except:
+                    sec = sec.strip()
+                if sec != '':
+                    info.append(sec)
 
-            # Search for remaining string values in array and combine adjacent ones
-            x = 0
-            while x < len(info):
-                if type(info[x]) == str:
-                    y = x + 1
-                    while (y < len(info) and type(info[y]) == str):
-                        info[x] = info[x] + ' ' + info[y]
-                        del info[y]
-                x += 1
-            
             # Save data row of data to data set
-            data.append(info[:len(col)])
+            data.append(info)
     
-    return reactions
-    
+    return reactions    
 # Function to convert a string/line of data to an array
 def strToArray(text):
     # Split up line by commas and spaces
@@ -97,6 +91,8 @@ def plot(name, data, chi_squared):
     # Declaring variables for plot
     fig = plt.figure()
     fig.suptitle(name)
+    fig.set_size_inches(8,5)
+    ax = plt.subplot(111)
 
     # Variables used for deciding log vs linear
     cutoffRatio = 1000
@@ -105,21 +101,27 @@ def plot(name, data, chi_squared):
     y_min = np.inf
     x_max = 0
     y_max = 0
+    num = 0
 
     # Looping through all data sets (ENDF, EXFOR, ...)
     for n, df in data.items():
         # Plotting data
         # Plotting evaluated data
         if len(n.split('_')) == 2:
-            plt.plot(df['X(MeV)'], df['Y(barns)'], label = n.split('_')[1])
+            num += 1
+            ax.plot(df['X(MeV)'], df['Y(barns)'], label = n.split('_')[1])
         
         # Plotting experimental data
         else:
             # Plotting by EXFOR ID
             for key, grp in df.groupby(['EXFOR-ID']):
-                plt.errorbar(grp['X(MeV)'], grp['Y(barns)'], xerr = grp['+-dX(MeV)'],\
+                num += 1
+                k = key
+                if type(key) == float:
+                    k = str(int(key))
+                ax.errorbar(grp['X(MeV)'], grp['Y(barns)'], xerr = grp['+-dX(MeV)'],\
                              yerr = grp['+-dY(barns)'], ls = 'none', marker = 'o',\
-                             mfc = 'white', markersize = 4 , label=key)
+                             mfc = 'white', markersize = 4 , label=k)
         
         #Finding extremes for purpose of determining log vs linear plotting
         x_min = min(x_min, df['X(MeV)'].min())
@@ -128,9 +130,11 @@ def plot(name, data, chi_squared):
         y_max = max(y_max, df['Y(barns)'].max())
     
     # Plot formatting
-    plt.legend(loc = 'best')
+    box = ax.get_position()
+    numCol = num // 18 + 1
+    ax.set_position([box.x0, box.y0, box.width * (5-numCol) / 5, box.height])
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), ncol = numCol)
     for i in chi_squared.values():
-        print(i)
         if i != -1:
             fig.text(.5, .01, 'Chi-Squared: ' + str(i), ha='center')
 
@@ -169,9 +173,11 @@ def chiSquared(data):
     
     return chi_squared
 
+def filterChi(vals):
+    
+
 # Take in Chi-Squared values for multiple data sets and combine into 
 def combineChi(vals):
-    print(vals)
     if not vals:
         return -1
     
@@ -180,7 +186,6 @@ def combineChi(vals):
         tot = 0
         points = 0
         for j in i.values():
-            print(j)
             tot += j[0]
             points += j[1]
         chi = tot/(points-1)
