@@ -109,6 +109,7 @@ def plot(name, data, chi_squared):
         # Plotting evaluated data
         if len(n.split('_')) == 2:
             num += 1
+            temp = df['X(MeV)'] < 15
             ax.plot(df['X(MeV)'], df['Y(barns)'], label = n.split('_')[1])
         
         # Plotting experimental data
@@ -172,9 +173,6 @@ def chiSquared(data):
             chi_squared[n] = exfor_chi # Save Chi-Squared values
     
     return chi_squared
-
-def filterChi(vals):
-    
 
 # Take in Chi-Squared values for multiple data sets and combine into 
 def combineChi(vals):
